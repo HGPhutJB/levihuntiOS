@@ -1,0 +1,50 @@
+name: Build IPA (chưa ký)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+jobs:
+  build:
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: modern
+            bundle_id: com.levihunt.app
+            display_name: Leviathan Hunter
+            ipa: Levihunt-12Pro.ipa
+          - variant: ios12
+            bundle_id: com.levihunt.app.ios12
+            display_name: Leviathan Hunter
+            ipa: Levihunt-iPhone6.ipa
+    env:
+      BUNDLE_ID: ${{ matrix.bundle_id }}
+      DISPLAY_NAME: ${{ matrix.display_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Chọn bản web
+        run: |
+          rm -rf App/www
+          cp -R www-${{ matrix.variant }} App/www
+      - name: Cài XcodeGen
+        run: brew install xcodegen
+      - name: Tạo project Xcode
+        working-directory: App
+        run: xcodegen generate
+      - name: Build (không ký)
+        working-directory: App
+        run: |
+          xcodebuild -project Levihunt.xcodeproj -scheme Levihunt -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+      - name: Đóng gói IPA
+        run: |
+          APP=App/build/Build/Products/Release-iphoneos/Levihunt.app
+          plutil -p "$APP/Info.plist" | grep -E 'MinimumOSVersion|CFBundleIdentifier|CFBundleDisplayName'
+          mkdir Payload && cp -R "$APP" Payload/
+          zip -qry "${{ matrix.ipa }}" Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.ipa }}
+          path: ${{ matrix.ipa }}
